@@ -1,6 +1,6 @@
 {
     "members" : [
-	{ "name" : ""; "firstname" : ""; "email" : "" },
-	{ "name" : ""; "firstname" : ""; "email" : "" }
+	{ "DERRAS" : ""; "Khalil" : ""; "gk_derras@esi.dz" : "" },
+	{ "KADI" : ""; "Fouad" : ""; "gf_kadi@esi.dz" : "" }
     ]
 }
