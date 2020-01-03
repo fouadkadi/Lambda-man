@@ -228,7 +228,33 @@ let shortest_path graph source target : path =
 
 *)
 let plan visualize observation memory =
-  memory (* Students, this is your job! *)
+   match memory.objective with
+      | Initializing ->
+         let cibles = ( World.tree_positions observation.trees) @ [observation.spaceship] in
+            {
+               memory with
+               objective = GoingTo([(List.nth cibles 0)],[observation.position]);
+               targets = cibles
+            }
+      | GoingTo(path,path') -> memory
+      | Chopping ->   
+         let branc =       
+               let t = tree_at observation.trees observation.position in
+                  match t with
+                     |None -> 0
+                     |Some t -> t.branches
+         in
+                        if branc > 0 then  {
+                           memory with
+                           objective = Chopping
+                        }
+                        else {
+                           memory with
+                           objective = GoingTo([(List.hd memory.targets)],[]);
+                           targets = List.tl memory.targets
+                        }
+            
+
 
 
 (**
@@ -248,8 +274,22 @@ let plan visualize observation memory =
    la vitesse et la direction du robot sont correctes.
 
 *)
+let get_angle a b = match a,b with
+| (xa,ya),(xb,yb) -> atan2 (yb -. ya) (xb -. xa)
+
 let next_action visualize observation memory =
-  Move (Space.angle_of_float 0., Space.speed_of_float 1.), memory
+   match memory.objective with
+      | Initializing -> Wait,memory
+      | Chopping -> ChopTree,memory 
+      | GoingTo(path,path') -> let d=get_angle observation.position (List.nth path 0) in
+         if (close (List.nth path 0) observation.position 1.) 
+            then Move(Space.angle_of_float d,Space.speed_of_float 0.),{
+               memory with
+               objective = Chopping
+            }
+         else 
+             Move(Space.angle_of_float d,observation.max_speed),memory
+
 
 (**
 
