@@ -23,7 +23,6 @@
 
 open World
 open Space
-
 (** Le Λserver transmet les observations suivantes au λman: *)
 type observation = World.observation
 
@@ -197,8 +196,63 @@ let discover visualize observation memory =
    sont les extremités ne croisent pas une bouche de l'enfer.
 
 *)
-let visibility_graph observation memory =
-  Graph.empty (* Students, this is your job! *)
+let rec update_pos list_sommets =
+   match list_sommets with 
+      |[]->[]
+      |p::l-> 
+         let rec aux list = 
+            match list with 
+               |[]->[]
+               |(x,y)::l'-> [(x-.3.,y+.3.) ]@ aux l'
+                  in aux (vertices p ) @ update_pos l 
+
+let filter_edges list_edges segments= 
+   match list_edges with
+      | []-> []
+      | e::l-> 
+         let rec aux e segments acc =
+            match segments with  
+               | []-> acc
+               | s::l'-> let (n1,n2,f) = e in 
+                  if (segment_intersects (n1,n2) s) 
+                     then aux e l' acc 
+                     else aux e l' (e::acc)
+         in aux e segments []
+
+let make_segments observation memory=  
+   match memory.known_world with
+   | None ->[]
+   | Some n -> hell_segments n 
+
+let make_polygones observation memory=
+   match memory.known_world with
+   | None ->[]
+   | Some n ->Space.polygons n.space ((=) Hell) 
+
+let make_nodes observation memory=
+   [observation.position] @ (World.tree_positions observation.trees) @ [observation.spaceship] @ update_pos (make_polygones observation memory)
+
+let make_edges observation memory= 
+   let l =make_nodes observation memory 
+      in 
+         let rec aux2 y list =
+            match list with
+            | [] ->[]
+            | z::list' -> let Distance d = dist2 y z in (y,z,d)::(aux2 y list')  
+               in
+                  let rec aux list = 
+                     match list with
+                        | [] ->[]
+                        | y::list' -> (aux2 y list')@(aux list')  
+                        in aux l
+
+let visibility_graph observation memory = 
+   let edges = make_edges observation memory in
+      let segments = make_segments observation memory in
+         let filtred_edges = filter_edges edges segments in 
+            let nodes = make_nodes observation memory in 
+               Graph.make nodes edges  
+
 
 
 (**
@@ -234,6 +288,7 @@ let plan visualize observation memory =
             {
                memory with
                objective = GoingTo([(List.nth cibles 0)],[observation.position]);
+               graph= visibility_graph observation memory;
                targets = cibles
             }
       | GoingTo(path,path') -> memory
@@ -300,4 +355,5 @@ let next_action visualize observation memory =
 let decide visualize observation memory : action * memory =
   let memory = discover visualize observation memory in
   let memory = plan visualize observation memory in
+  let () = Visualizer.show_graph memory.graph in
   next_action visualize observation memory
