@@ -23,6 +23,7 @@
 
 open World
 open Space
+open List
 (** Le Λserver transmet les observations suivantes au λman: *)
 type observation = World.observation
 
@@ -199,10 +200,10 @@ let discover visualize observation memory =
 let rec update_pos sommets =  match sommets with 
 | [] -> []
 | (x,y) :: l' -> let t = match List.length sommets with 
-  | 1 -> [(x-.2.,y+.2.)]
-  | 2 -> [(x +.2.,y +.2.)] 
-  | 3-> [(x +.2.,y -.2.)]
-  | 4 -> [(x-.2.,y -.2.)] 
+  | 1 -> [(x-.3.,y+.3.)]
+  | 2 -> [(x +.3.,y +.3.)] 
+  | 3-> [(x +.3.,y -.3.)]
+  | 4 -> [(x-.3.,y -.3.)] 
   | _ -> [] 
   in t @ update_pos l'  
    
@@ -365,21 +366,21 @@ let plan visualize observation memory =
          let cibles = ( World.tree_positions observation.trees) @ [observation.spaceship] in
             {
                memory with
-               objective = GoingTo([(List.nth cibles 0)],[observation.position]);
+               objective = GoingTo([List.hd cibles],[observation.position]);
                targets = cibles
             }
       | GoingTo(path,path') -> 
-         if edge_valide (observation.position,List.hd path ) (make_segments observation memory) =false 
+         if edge_valide (observation.position,List.nth path 0) (make_segments observation memory) =false 
          then 
          let newpath=  shortest_path (visibility_graph observation memory)  (observation.position ) (List.hd path ) in 
              { memory with 
-              objective = GoingTo ( List.tl newpath @(List.tl path),path');
+              objective = GoingTo ( (List.tl newpath)@path,path');
              graph = visibility_graph observation memory
          }
        else{
             memory with 
             objective = GoingTo ( path, path');
-           graph = visibility_graph observation memory
+            graph = visibility_graph observation memory
           }
       | Chopping ->   
          let branc =       
@@ -394,7 +395,7 @@ let plan visualize observation memory =
                         }
                         else {
                            memory with
-                           objective = GoingTo([(List.hd memory.targets)],[]);
+                           objective = GoingTo([(List.nth memory.targets 1)],[]);
                            targets = List.tl memory.targets
                         }
             
@@ -423,16 +424,29 @@ let get_angle a b = match a,b with
 
 let next_action visualize observation memory =
    match memory.objective with
-      | Initializing -> Wait,memory
       | Chopping -> ChopTree,memory 
-      | GoingTo(path,path') -> let d=get_angle observation.position (List.nth path 0) in
-         if (close (List.nth path 0) observation.position 1.) 
-            then Move(Space.angle_of_float d,Space.speed_of_float 0.),{
-               memory with
-               objective = Chopping
-            }
+      | GoingTo(path,path') -> 
+      let d=get_angle observation.position (List.nth path 0) in
+         if (close (List.nth path 0) observation.position 1.) then
+            if List.nth path 0 <> observation.spaceship  then
+               if (List.nth path 0) <> (List.nth memory.targets 0)
+                  then 
+                  Move(Space.angle_of_float d,observation.max_speed),{
+                     memory with
+                     objective = GoingTo(List.tl path,path')
+                  }   
+               else 
+               Move(Space.angle_of_float d,Space.speed_of_float 0.),{
+                     memory with
+                     objective = Chopping
+                  }     
+            else
+               Die "win",memory
          else 
-             Move(Space.angle_of_float d,observation.max_speed),memory
+            Move(Space.angle_of_float d,observation.max_speed),memory
+
+      | _ -> Wait,memory
+
 
 
 (**
