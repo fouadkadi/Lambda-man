@@ -273,76 +273,82 @@ module Noeud =
 
       let compare p1 p2 =
          match (p1,p2) with 
-         | (x1,y1) , (x2,y2) -> if x1 < x2 then -1
-                                else if x1 > x2 then 1
-                                else if y1 < y2 then -1
-                                else if y1 > y2 then 1
+         | (a,b) , (c,d) -> if a < c then -1
+                                else if a > c then 1
+                                else if b < d then -1
+                                else if b > d then 1
                                 else 0
 
 end;;
 
 module FILE_PRIO = PriorityQueue.Make (Noeud) (Float)
-module Liste= Map.Make(Noeud) 
+
+module Liste = Map.Make(Noeud) 
 
 
-let rec initialiser_dji_P pere noeuds=
-match noeuds with 
-|[]-> pere
-|l::noeuds ->initialiser_dji_P (Liste.add l l pere) noeuds 
-
-let rec initialiser_dji_F file noeuds source=
+let rec initialiser_dji_F file source noeuds=
 match noeuds with 
 |[]-> file
-|l::noeuds ->let n= match Noeud.compare l source  with
-                    |0 -> 0.
-                    |_-> infinity 
-   in initialiser_dji_F (FILE_PRIO.insert file l n) noeuds source 
+|l::noeuds ->let n= match l=source with
+                    |true -> 0.
+                    |false-> infinity 
+   in initialiser_dji_F (FILE_PRIO.insert file l n)  source noeuds
+
+
+let rec initialiser_dji_P_V pere noeuds=
+match noeuds with
+|[]->pere
+|l::noeuds-> initialiser_dji_P_V (Liste.add l false pere) noeuds
+
+let rec initialiser_dji_P pere noeuds=
+match noeuds with
+|[]->pere
+|l::noeuds-> initialiser_dji_P (Liste.add l l pere) noeuds
+
+let condition_dijsktra u v w liste file = not(Liste.find v liste) && ((FILE_PRIO.priority file v) > u +. w  )
 
 
 
-let conditon_djikstra file u v w = (FILE_PRIO.priority file v) > ((FILE_PRIO.priority file u)+.w)
 
+let rec parcours_dijsktra  file graph pere pere_v=
 
-let value_of file u=FILE_PRIO.priority file u
+let rec pour_arretes file edges pere  pere_v value=
 
+match edges with
+|[]->(file,pere)
+|(u,v,w)::noeuds->
+ if condition_dijsktra value v w pere_v file
+ then pour_arretes  
+      (FILE_PRIO.decrease file v (value +. w) ) 
+      noeuds (Liste.add v u pere ) pere_v  value
+ else pour_arretes  file noeuds pere  pere_v value in
 
-let rec djikstra_traitement file pere graph=
-match (FILE_PRIO.length file) with 
+ match (FILE_PRIO.length file) with 
 |0 ->  pere
 |_ ->  let point=(FILE_PRIO.get_min file) in
-       let leges = match point with
-                  |None ->[]
-                  |Some (p,u)  -> Graph.out graph u in 
-          match leges with
-          |[] -> djikstra_traitement (FILE_PRIO.remove_min file) pere  graph
-          |(u,v,w)::leges ->if(conditon_djikstra file u v w) then
-                  let new_pere=Liste.add v u pere in
-                 (djikstra_traitement (FILE_PRIO.decrease file v ((value_of file u)+.w )  ) pere  graph) 
-                 else djikstra_traitement (FILE_PRIO.remove_min file) pere  graph
-                  
-          
-          
- let djikstra graph source =
- let noeuds= Graph.nodes graph in 
- let pere=initialiser_dji_P Liste.empty noeuds in
+       let newfile=FILE_PRIO.remove_min file in
+       match point with
+                  |None -> pere
+                  |Some (p,v)  -> 
+                     let  edges= Graph.out graph v in                             
+                     let  maj_visite =(Liste.add v true pere_v) in
+                     match pour_arretes  newfile edges pere  maj_visite p with
+                     |(file2,pred)-> parcours_dijsktra  file2 graph pred maj_visite
 
- let file=initialiser_dji_F FILE_PRIO.empty noeuds source in
- djikstra_traitement file pere graph
-
-
-
-
-
-
+                     
 
 
 let shortest_path graph source target : path =
-let rec aux_parcours pere source target path=
-match Liste.find target pere with
-| p ->if(p=source)then( path )
+   let edges= Graph.nodes graph in 
+   let file=initialiser_dji_F FILE_PRIO.empty source edges in 
+   let pere_v=initialiser_dji_P_V Liste.empty edges in
+   let pere=initialiser_dji_P Liste.empty edges in 
+   let pere_final= (parcours_dijsktra  file graph pere pere_v )in
+   let rec aux_parcours pere source target path=
+   match Liste.find target pere with
+   | p-> if(p=source)then( path )
       else aux_parcours pere source p (p::path)
-in source::aux_parcours (djikstra graph source ) source target [target] 
-
+   in [source]@aux_parcours pere_final source target [target]
 
 (**
 
