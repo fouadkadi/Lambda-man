@@ -196,62 +196,67 @@ let discover visualize observation memory =
    sont les extremités ne croisent pas une bouche de l'enfer.
 
 *)
-let rec update_pos list_sommets =
-   match list_sommets with 
-      |[]->[]
-      |p::l-> 
-         let rec aux list = 
-            match list with 
-               |[]->[]
-               |(x,y)::l'-> [(x-.3.,y+.3.) ]@ aux l'
-                  in aux (vertices p ) @ update_pos l 
+let rec update_pos sommets =  match sommets with 
+| [] -> []
+| (x,y) :: l' -> let t = match List.length sommets with 
+  | 1 -> [(x-.2.,y+.2.)]
+  | 2 -> [(x +.2.,y +.2.)] 
+  | 3-> [(x +.2.,y -.2.)]
+  | 4 -> [(x-.2.,y -.2.)] 
+  | _ -> [] 
+  in t @ update_pos l'  
+   
+let rec  edge_valide  x l= match l with 
+| []-> true
+| y::l'-> if segment_intersects y x then  false else edge_valide x l'
 
-let filter_edges list_edges segments= 
-   match list_edges with
-      | []-> []
-      | e::l-> 
-         let rec aux e segments acc =
-            match segments with  
-               | []-> acc
-               | s::l'-> let (n1,n2,f) = e in 
-                  if (segment_intersects (n1,n2) s) 
-                     then aux e l' acc 
-                     else aux e l' (e::acc)
-         in aux e segments []
+let filter_edges edges segments= 
+   let rec aux edges acc s  = match edges with 
+   | [] -> acc
+   | e::l->  if edge_valide e segments then aux l (e::acc) s
+   else  aux l acc s in 
+      let  rec f l =  match l with 
+         |[]->[]
+         |x::l' ->  match x with 
+            |(a,b) -> let Distance d = dist2 a b in (a,b,d) ::f l'  
+      in 
+         f (aux edges  [] segments)
 
-let make_segments observation memory=  
+let make_polygones observation memory = 
+   match memory.known_world with
+   | None ->[]
+   | Some n ->Space.polygons n.space ((=) Hell)
+
+let make_segments observation memory = 
    match memory.known_world with
    | None ->[]
    | Some n -> hell_segments n 
 
-let make_polygones observation memory=
-   match memory.known_world with
-   | None ->[]
-   | Some n ->Space.polygons n.space ((=) Hell) 
-
-let make_nodes observation memory=
-   [observation.position] @ (World.tree_positions observation.trees) @ [observation.spaceship] @ update_pos (make_polygones observation memory)
-
-let make_edges observation memory= 
-   let l =make_nodes observation memory 
-      in 
-         let rec aux2 y list =
-            match list with
-            | [] ->[]
-            | z::list' -> let Distance d = dist2 y z in (y,z,d)::(aux2 y list')  
-               in
-                  let rec aux list = 
-                     match list with
-                        | [] ->[]
-                        | y::list' -> (aux2 y list')@(aux list')  
-                        in aux l
+let make_nodes observation memory = 
+   let l = make_polygones observation memory in 
+      let rec aux list =
+         match list with 
+            |[]->[]
+            |x::l-> (update_pos (vertices x)) @(aux l) 
+               in [observation.spaceship] @ [observation.position] @ (World.tree_positions observation.trees) @ aux l
+   let make_edges l= 
+            let rec aux2 y list =
+               match list with
+               | [] ->[]
+               | z::list' ->(y,z) ::(aux2 y list')  
+                  in
+                     let rec aux list = 
+                        match list with
+                           | [] ->[]
+                           | y::list' -> (aux2 y list')@(aux list')  
+                           in aux l 
 
 let visibility_graph observation memory = 
-   let edges = make_edges observation memory in
-      let segments = make_segments observation memory in
+  let segments = make_segments observation memory in
+   let nodes = make_nodes observation memory in
+      let edges = make_edges nodes in
          let filtred_edges = filter_edges edges segments in 
-            let nodes = make_nodes observation memory in 
-               Graph.make nodes edges  
+            Graph.make nodes filtred_edges
 
 
 
@@ -361,10 +366,21 @@ let plan visualize observation memory =
             {
                memory with
                objective = GoingTo([(List.nth cibles 0)],[observation.position]);
-               graph= visibility_graph observation memory;
                targets = cibles
             }
-      | GoingTo(path,path') -> memory
+      | GoingTo(path,path') -> 
+         if edge_valide (observation.position,List.hd path ) (make_segments observation memory) =false 
+         then 
+         let newpath=  shortest_path (visibility_graph observation memory)  (observation.position ) (List.hd path ) in 
+             { memory with 
+              objective = GoingTo ( List.tl newpath @(List.tl path),path');
+             graph = visibility_graph observation memory
+         }
+       else{
+            memory with 
+            objective = GoingTo ( path, path');
+           graph = visibility_graph observation memory
+          }
       | Chopping ->   
          let branc =       
                let t = tree_at observation.trees observation.position in
