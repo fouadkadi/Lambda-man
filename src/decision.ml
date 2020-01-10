@@ -200,10 +200,10 @@ let discover visualize observation memory =
 let rec update_pos sommets =  match sommets with 
 | [] -> []
 | (x,y) :: l' -> let t = match List.length sommets with 
-  | 1 -> [(x-.3.,y+.3.)]
-  | 2 -> [(x +.3.,y +.3.)] 
-  | 3-> [(x +.3.,y -.3.)]
-  | 4 -> [(x-.3.,y -.3.)] 
+  | 1 -> [(x-.2.,y+.2.)]
+  | 2 -> [(x +.2.,y +.2.)] 
+  | 3-> [(x +.2.,y -.2.)]
+  | 4 -> [(x-.2.,y -.2.)] 
   | _ -> [] 
   in t @ update_pos l'  
    
@@ -228,6 +228,11 @@ let make_polygones observation memory =
    | None ->[]
    | Some n ->Space.polygons n.space ((=) Hell)
 
+   let make_polygones_suffer observation memory = 
+      match memory.known_world with
+      | None ->[]
+      | Some n ->Space.polygons n.space ((<>) Hell)
+
 let make_segments observation memory = 
    match memory.known_world with
    | None ->[]
@@ -240,24 +245,74 @@ let make_nodes observation memory =
             |[]->[]
             |x::l-> (update_pos (vertices x)) @(aux l) 
                in [observation.spaceship] @ [observation.position] @ (World.tree_positions observation.trees) @ aux l
-   let make_edges l= 
-            let rec aux2 y list =
-               match list with
-               | [] ->[]
-               | z::list' ->(y,z) ::(aux2 y list')  
-                  in
-                     let rec aux list = 
-                        match list with
-                           | [] ->[]
-                           | y::list' -> (aux2 y list')@(aux list')  
-                           in aux l 
 
-let visibility_graph observation memory = 
-  let segments = make_segments observation memory in
-   let nodes = make_nodes observation memory in
-      let edges = make_edges nodes in
-         let filtred_edges = filter_edges edges segments in 
-            Graph.make nodes filtred_edges
+let make_edges l= 
+   let rec aux2 y list =
+      match list with
+      | [] ->[]
+      | z::list' ->(y,z) ::(aux2 y list')  
+         in
+            let rec aux list = 
+               match list with
+                  | [] ->[]
+                  | y::list' -> (aux2 y list')@(aux list')  
+                  in aux l 
+  
+let intersectionn (p,p') (p'',p''') = 
+   let a (x0,y0) (x1,y1)=(y1-.y0)/.(x1-.x0) in 
+      let b (x0,y0) (x1,y1)=y0 -. (x0*.(a (x0,y0) (x1,y1))) in 
+         let a1 = a p p' in let a2 = a p'' p''' in let b1 = b p p' in let b2= b p'' p''' in
+            let x = (b2-.b1)/.(a1-.a2) in let y=a2*.x+.b2 
+               in (x,y)
+
+
+let half (x,y) (x',y') = ((x+.x')/.(2.0),(y+.y')/.(2.0))
+
+let foo p e t =
+   let pol = polygon_segments p in 
+   let (a,b,d)=e in
+   let rec aux l (a,b,d) =
+      match l with
+         | [] -> []
+         | (x,y)::l' ->if segment_intersects (a,b) (x,y) 
+            then (intersectionn (a,b) (x,y))::(aux l' e)
+            else aux l' e  
+      in let points = aux pol e 
+         in match List.length points with
+            |0-> e
+            |1-> 
+               let p =List.nth points 0 in 
+                  let Distance d' = dist2 a p  in let Distance d'' = dist2 p b  in
+                     let f = suffering  t b  in 
+                        (a,b,d'+. d''/.f)
+            |_-> 
+               let p =List.nth points 0 in let p' = List.nth points 1  in 
+                  let Distance d' = dist2 p p' in 
+                     let f = suffering  t (half p p')  in 
+                        (a,b,d -. d'+. d'/.f)
+      
+   let rec change_distance_edge e pols t =
+      match pols with
+      | []->e
+      | p::pols' ->change_distance_edge (foo p e t) pols' t
+
+   let change_distances_to_suffer observation memory edges= 
+      let pols = make_polygones_suffer observation memory
+      in 
+            match memory.known_world with
+               | None-> edges
+               | Some t ->let rec aux l = match l with 
+                  | [] ->[]
+                  | x::l' -> (change_distance_edge x pols t)::(aux l')
+               in aux edges 
+
+   let visibility_graph observation memory = 
+      let segments = make_segments observation memory in
+         let nodes = make_nodes observation memory in
+            let edges = make_edges nodes in
+               let filtred_edges = filter_edges edges segments in
+                  let suffred_edges = change_distances_to_suffer observation memory filtred_edges in
+                     Graph.make nodes suffred_edges 
 
 
 
