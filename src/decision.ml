@@ -210,10 +210,10 @@ match micro with
 let rec update_pos sommets =  match sommets with 
 | [] -> []
 | (x,y) :: l' -> let t = match List.length sommets with 
-  | 1 -> [(x-.2.,y+.2.)]
-  | 2 -> [(x +.2.,y +.2.)] 
-  | 3-> [(x +.2.,y -.2.)]
-  | 4 -> [(x-.2.,y -.2.)] 
+  | 1 -> [(x-.3.,y+.3.)]
+  | 2 -> [(x +.3.,y +.3.)] 
+  | 3-> [(x +.3.,y -.3.)]
+  | 4 -> [(x-.3.,y -.3.)] 
   | _ -> [] 
   in t @ update_pos l'  
    
@@ -255,8 +255,10 @@ let make_nodes observation memory =
             |[]->[]
             |x::l-> (update_pos (vertices x)) @(aux l) 
                in
-               let usefull_trees=  remove_micro (World.tree_positions observation.trees) observation.messages 0 0
-               in [observation.spaceship] @ [observation.position] @ (usefull_trees) @ aux l
+               (*let ()=Printf.eprintf " path 1 : %s\n" (string_of_path (World.tree_positions observation.trees)) in *)
+               let usefull_trees=  remove_micro (World.tree_positions observation.trees) observation.messages 0 0 in
+               (*let ()=Printf.eprintf "path 2 : %s\n" (string_of_path usefull_trees) *)
+                [observation.spaceship] @ [observation.position] @ (usefull_trees) @ aux l
 
 let make_edges l= 
    let rec aux2 y list =
@@ -493,6 +495,7 @@ let get_angle a b = match a,b with
 | (xa,ya),(xb,yb) -> atan2 (yb -. ya) (xb -. xa)
 
 
+
 let next_action visualize observation memory =
    match memory.objective with
       | Chopping -> ChopTree,memory 
@@ -526,12 +529,13 @@ let next_action visualize observation memory =
                let branche = tree.branches in 
                let new_world= World.put world (MicroAtom(0)) (Space.duration_of_int branche) pos in
                let ()=Printf.eprintf "i'me here " in 
-               Move(Space.angle_of_float d,Space.speed_of_float 0.),{
+               Move(Space.angle_of_float d,Space.speed_of_float 0.),
+                  {
                      memory with
                      objective = Chopping;
                      
                      known_world=Some new_world 
-                  }          
+                  }        
             else
                Die "win",memory
          else 
