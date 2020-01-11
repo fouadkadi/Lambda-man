@@ -200,27 +200,28 @@ let discover visualize observation memory =
 let rec update_pos sommets =  match sommets with 
 | [] -> []
 | (x,y) :: l' -> let t = match List.length sommets with 
-  | 1 -> [(x-.2.,y+.2.)]
-  | 2 -> [(x +.2.,y +.2.)] 
-  | 3-> [(x +.2.,y -.2.)]
-  | 4 -> [(x-.2.,y -.2.)] 
+  | 1 -> [(x-.3.,y+.3.)]
+  | 2 -> [(x +.3.,y +.3.)] 
+  | 3-> [(x +.3.,y -.3.)]
+  | 4 -> [(x-.3.,y -.3.)] 
   | _ -> [] 
   in t @ update_pos l'  
    
-let rec  edge_valide  x l= match l with 
-| []-> true
-| y::l'-> if segment_intersects y x then  false else edge_valide x l'
+let rec  edge_valide  x l= 
+   match l with 
+      | []-> true
+      | y::l'-> if segment_intersects y x then  false else edge_valide x l'
 
 let filter_edges edges segments= 
    let rec aux edges acc s  = match edges with 
    | [] -> acc
-   | e::l->  if edge_valide e segments then aux l (e::acc) s
-   else  aux l acc s in 
+   | e::l->  if edge_valide e segments then aux l (e::acc) s else  aux l acc s
+    in 
       let  rec f l =  match l with 
          |[]->[]
          |x::l' ->  match x with 
             |(a,b) -> let Distance d = dist2 a b in (a,b,d) ::f l'  
-      in 
+   in 
          f (aux edges  [] segments)
 
 let make_polygones observation memory = 
@@ -280,11 +281,11 @@ let foo p e t =
       in let points = aux pol e 
          in match List.length points with
             |0-> e
-            |1-> 
-               let p =List.nth points 0 in 
+            |1-> e
+              (** let p =List.nth points 0 in 
                   let Distance d' = dist2 a p  in let Distance d'' = dist2 p b  in
                      let f = suffering  t b  in 
-                        (a,b,d'+. d''/.f)
+                        (a,b,d'+. d''/.f)*)
             |_-> 
                let p =List.nth points 0 in let p' = List.nth points 1  in 
                   let Distance d' = dist2 p p' in 
@@ -421,7 +422,7 @@ let shortest_path graph source target : path =
    et le faire suivre un premier chemin.
 
 *)
-let plan visualize observation memory =
+let plan visualize observation memory = 
    match memory.objective with
       | Initializing ->
          let cibles = ( World.tree_positions observation.trees) @ [observation.spaceship] in
@@ -430,13 +431,14 @@ let plan visualize observation memory =
                objective = GoingTo([List.hd cibles],[observation.position]);
                targets = cibles
             }
-      | GoingTo(path,path') -> 
+      | GoingTo(path,path') ->
          if edge_valide (observation.position,List.nth path 0) (make_segments observation memory) =false 
          then 
-         let newpath=  shortest_path (visibility_graph observation memory)  (observation.position ) (List.hd path ) in 
-             { memory with 
-              objective = GoingTo ( (List.tl newpath)@path,path');
-             graph = visibility_graph observation memory
+         let newpath=  shortest_path (visibility_graph observation memory)  observation.position (List.hd path ) in 
+             { 
+               memory with 
+               objective = GoingTo ((List.tl newpath)@(List.tl path),path');
+               graph = visibility_graph observation memory
          }
        else{
             memory with 
@@ -487,11 +489,12 @@ let next_action visualize observation memory =
    match memory.objective with
       | Chopping -> ChopTree,memory 
       | GoingTo(path,path') -> 
+      let t= if List.nth path 0 <> (List.nth memory.targets 0) then 2. else 1. in
       let d=get_angle observation.position (List.nth path 0) in
-         if (close (List.nth path 0) observation.position 1.) then
+         if (close (List.nth path 0) observation.position t) then
             if List.nth path 0 <> observation.spaceship  then
                if (List.nth path 0) <> (List.nth memory.targets 0)
-                  then 
+                  then let d=get_angle observation.position (List.nth path 1) in
                   Move(Space.angle_of_float d,observation.max_speed),{
                      memory with
                      objective = GoingTo(List.tl path,path')
