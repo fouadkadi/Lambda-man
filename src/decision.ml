@@ -197,6 +197,16 @@ let discover visualize observation memory =
    sont les extremités ne croisent pas une bouche de l'enfer.
 
 *)
+
+
+(*   Garder que les arbres qui ne sont pas en cours de chooping  *)
+let rec remove_micro trees micro team robot =
+match micro with 
+|[] -> trees 
+|m::micro -> 
+  remove_micro (List.filter (fun x -> (x=m.microcode_position)) trees) micro  team robot
+
+
 let rec update_pos sommets =  match sommets with 
 | [] -> []
 | (x,y) :: l' -> let t = match List.length sommets with 
@@ -245,7 +255,11 @@ let make_nodes observation memory =
          match list with 
             |[]->[]
             |x::l-> (update_pos (vertices x)) @(aux l) 
-               in [observation.spaceship] @ [observation.position] @ (World.tree_positions observation.trees) @ aux l
+               in
+               (*let ()=Printf.eprintf " path 1 : %s\n" (string_of_path (World.tree_positions observation.trees)) in *)
+               let usefull_trees=  remove_micro (World.tree_positions observation.trees) observation.messages 0 0 in
+               (*let ()=Printf.eprintf "path 2 : %s\n" (string_of_path usefull_trees) *)
+                [observation.spaceship] @ [observation.position] @ (usefull_trees) @ aux l
 
 let make_edges l= 
    let rec aux2 y list =
@@ -329,11 +343,17 @@ module Noeud =
 
       let compare p1 p2 =
          match (p1,p2) with 
-         | (a,b) , (c,d) -> if a < c then -1
-                                else if a > c then 1
-                                else if b < d then -1
-                                else if b > d then 1
-                                else 0
+         | (a,b) , (c,d) ->
+          match  a,c with
+          | v1 ,v2 when v1>v2 -> 1
+          | v1 ,v2 when v1<v2 -> -1
+          | v1 ,v2 -> match  b,d with
+          | v1 ,v2 when v1>v2 -> 1
+          | v1 ,v2 when v1<v2 -> -1
+          | v1 ,v2 -> 0
+
+
+                     
 
 end;;
 
@@ -362,24 +382,15 @@ match noeuds with
 |l::noeuds-> initialiser_dji_P (Liste.add l l pere) noeuds
 
 let condition_dijsktra u v w liste file = not(Liste.find v liste) && ((FILE_PRIO.priority file v) > u +. w  )
-
-
+let f a b = match a with 
+           |(f,p,vi,va) -> match b with 
+           |(u,v,w) ->     match condition_dijsktra va v w vi f with
+           |true  -> ((FILE_PRIO.decrease f v (va +. w)),(Liste.add v u p ),vi,va)
+           |false -> a
 
 
 let rec parcours_dijsktra  file graph pere pere_v=
-
-let rec pour_arretes file edges pere  pere_v value=
-
-match edges with
-|[]->(file,pere)
-|(u,v,w)::noeuds->
- if condition_dijsktra value v w pere_v file
- then pour_arretes  
-      (FILE_PRIO.decrease file v (value +. w) ) 
-      noeuds (Liste.add v u pere ) pere_v  value
- else pour_arretes  file noeuds pere  pere_v value in
-
- match (FILE_PRIO.length file) with 
+match (FILE_PRIO.length file) with 
 |0 ->  pere
 |_ ->  let point=(FILE_PRIO.get_min file) in
        let newfile=FILE_PRIO.remove_min file in
@@ -388,8 +399,8 @@ match edges with
                   |Some (p,v)  -> 
                      let  edges= Graph.out graph v in                             
                      let  maj_visite =(Liste.add v true pere_v) in
-                     match pour_arretes  newfile edges pere  maj_visite p with
-                     |(file2,pred)-> parcours_dijsktra  file2 graph pred maj_visite
+                     match List.fold_left f (newfile,pere,maj_visite,p) edges with
+                     |(file2,pred,vi,va)-> parcours_dijsktra  file2 graph pred maj_visite
 
                      
 
@@ -485,6 +496,8 @@ let plan visualize observation memory =
 let get_angle a b = match a,b with
 | (xa,ya),(xb,yb) -> atan2 (yb -. ya) (xb -. xa)
 
+
+
 let next_action visualize observation memory =
    match memory.objective with
       | Chopping -> ChopTree,memory 
@@ -500,10 +513,32 @@ let next_action visualize observation memory =
                      objective = GoingTo(List.tl path,path')
                   }   
                else 
-               Move(Space.angle_of_float d,Space.speed_of_float 0.),{
+               let pos =(List.nth path 0) in 
+               let tr = World.tree_at observation.trees pos in 
+               match tr with 
+               |None ->
+                   Move(Space.angle_of_float d,Space.speed_of_float 0.),{
                      memory with
                      objective = Chopping
-                  }     
+                  } 
+                 
+               |Some tree -> match memory.known_world with
+                            |None -> assert false 
+                                 (*Move(Space.angle_of_float d,Space.speed_of_float 0.),{
+                                  memory with
+                                  objective = Chopping
+                                 } *)
+                            |Some world ->
+               let branche = tree.branches in 
+               let new_world= World.put world (MicroAtom(0)) (Space.duration_of_int branche) pos in
+               let ()=Printf.eprintf "i'me here " in 
+               Move(Space.angle_of_float d,Space.speed_of_float 0.),
+                  {
+                     memory with
+                     objective = Chopping;
+                     
+                     known_world=Some new_world 
+                  }        
             else
                Die "win",memory
          else 
