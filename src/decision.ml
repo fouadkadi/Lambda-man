@@ -440,26 +440,21 @@ let shortest_path graph source target : path =
    et le faire suivre un premier chemin.
 
 *)
-let rec sublist b e l = 
-  match l with
-    [] -> []
-  | h :: t -> 
-     let tail = if e=0 then [] else sublist (b-1) (e-1) t in
-     if b>0 then tail else h :: tail
-
-let  devide l ind len =
-        if len == ind+1 then sublist (ind*len) ((List.length l)-1) l
-        else sublist (ind*len) ((ind*len) + int_of_float ( (floor (( float_of_int (List.length l))/. (float_of_int len))))) l
+let rec subtargets acc k id nb l=
+let ind=(k*nb)+id in
+match List.length l with 
+|a when a > ind -> subtargets ((List.nth l ind)::acc) (k+1) id nb l      
+|a -> acc 
 
 let plan visualize observation memory id nb=
    match memory.objective with
       | Initializing ->
          let cibles = ( World.tree_positions observation.trees) in
-         let tl= devide cibles id nb in
+         let tl= subtargets [observation.spaceship]  0 id nb cibles in
             {
                memory with
                objective = GoingTo([List.nth tl 0],[observation.position]);
-               targets = tl @ [observation.spaceship] 
+               targets = tl 
             }
       | GoingTo(path,path') ->
          if edge_valide (observation.position,List.nth path 0) (make_segments observation memory) =false 
@@ -574,6 +569,7 @@ let next_action visualize observation memory =
 
 *)
 let decide visualize observation memory id nb: action * memory =
+  let ()=Printf.eprintf "%f  %d\n" (ceil (6.0 /. 3.0)) nb in 
   let memory = discover visualize observation memory in
   let memory = plan visualize observation memory id nb in
   let () = Visualizer.show_graph memory.graph in
