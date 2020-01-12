@@ -569,7 +569,6 @@ let next_action visualize observation memory =
 
 *)
 let decide visualize observation memory id nb: action * memory =
-  let ()=Printf.eprintf "%f  %d\n" (ceil (6.0 /. 3.0)) nb in 
   let memory = discover visualize observation memory in
   let memory = plan visualize observation memory id nb in
   let () = Visualizer.show_graph memory.graph in
