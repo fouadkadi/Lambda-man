@@ -371,6 +371,8 @@ let chang_edg_pol p e t =
    aller d'une source à une cible dans le graphe.
 
 *)
+
+(* Module noeud necessaire pour la file de priorité *)
 module Noeud = 
    struct
       type t = Graph.node 
@@ -391,11 +393,15 @@ module Noeud =
 
 end;;
 
-module FILE_PRIO = PriorityQueue.Make (Noeud) (Float)
+module FILE_PRIO = PriorityQueue.Make (Noeud) (Float) (* File de priorité *)
 
-module Liste = Map.Make(Noeud) 
+module Liste = Map.Make(Noeud) (* Liste des peres et peres visités *)
 
-
+(* ===  Fonctions d'initialisation  === 
+   initialiser_dji_F : pour la file 
+   initialiser_dji_P_V: pour la liste des peres visités
+   initialiser_dji_P: pour la liste des peres 
+*)
 let rec initialiser_dji_F file source noeuds=
 match noeuds with 
 |[]-> file
@@ -415,6 +421,7 @@ match noeuds with
 |[]->pere
 |l::noeuds-> initialiser_dji_P (Liste.add l l pere) noeuds
 
+(* Fonction qui vérifie la condition de dikstra pour que noeud*)
 let condition_dijsktra u v w liste file = not(Liste.find v liste) && ((FILE_PRIO.priority file v) > u +. w  )
 let f a b = match a with 
            |(f,p,vi,va) -> match b with 
@@ -422,23 +429,24 @@ let f a b = match a with
            |true  -> ((FILE_PRIO.decrease f v (va +. w)),(Liste.add v u p ),vi,va)
            |false -> a
 
-
+(* Fonction qui s'occupe d'appliquer le parcous de Dijkstra et renvois la matrice pere *)
 let rec parcours_dijsktra  file graph pere pere_v=
 match (FILE_PRIO.length file) with 
 |0 ->  pere
 |_ ->  let point=(FILE_PRIO.get_min file) in
-       let newfile=FILE_PRIO.remove_min file in
+       let newfile=FILE_PRIO.remove_min file in (* Extraire le minimum de la file *)
        match point with
                   |None -> pere
                   |Some (p,v)  -> 
                      let  edges= Graph.out graph v in                             
                      let  maj_visite =(Liste.add v true pere_v) in
-                     match List.fold_left f (newfile,pere,maj_visite,p) edges with
+                     (* Vérifier la condition pour chaque noeud et modifier la file et la matrice pere *)
+                     match List.fold_left f (newfile,pere,maj_visite,p) edges with 
                      |(file2,pred,vi,va)-> parcours_dijsktra  file2 graph pred maj_visite
 
                      
 
-
+(* Plus court chemin *)
 let shortest_path graph source target : path =
    let edges= Graph.nodes graph in 
    let file=initialiser_dji_F FILE_PRIO.empty source edges in 
