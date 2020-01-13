@@ -207,15 +207,30 @@ match micro with
   remove_micro (List.filter (fun x -> (x=m.microcode_position)) trees) micro  team robot
 
 
-let rec update_pos sommets =  match sommets with 
-| [] -> []
-| (x,y) :: l' -> let t = match List.length sommets with 
-  | 1 -> [(x-.3.,y+.3.)]
-  | 2 -> [(x +.3.,y +.3.)] 
-  | 3-> [(x +.3.,y -.3.)]
-  | 4 -> [(x-.3.,y -.3.)] 
-  | _ -> [] 
-  in t @ update_pos l'  
+  let min_x p p' = if x_ p < x_ p' then p else p'
+  let max_x p p'= if x_ p < x_ p'  then p' else p
+  let min_y p p'= if y_ p < y_ p'  then p else p'
+  let max_y p p'= if y_ p < y_ p'  then p' else p
+  
+  let maximum_x = function
+    | x :: xs -> List.fold_left max_x x xs
+    | [] -> failwith "empty"
+  let minimum_x = function
+     | x :: xs -> List.fold_left min_x x xs
+     | [] -> failwith "empty"
+  let maximum_y = function
+     | x :: xs -> List.fold_left max_y x xs
+     | [] -> failwith "empty"
+  let minimum_y = function
+     | x :: xs -> List.fold_left min_y x xs
+     | [] -> failwith "empty"
+  
+  let update_pos sommets = 
+     let min_x = x_(minimum_x sommets)  in let max_x = x_(maximum_x sommets) in let min_y = y_(minimum_y sommets)  in let max_y = y_(maximum_y sommets)  in 
+        [(min_x-.3.,max_y+.3.);
+        (max_x +.3.,max_y +.3.);
+        (max_x +.3.,min_y -.3.);
+        (min_x-.3.,min_y -.3.)]
    
 let rec  edge_valide  x l= 
    match l with 
@@ -433,29 +448,43 @@ let shortest_path graph source target : path =
    et le faire suivre un premier chemin.
 
 *)
+let rec pick_close_target position list= 
+   match list with
+      | [] -> failwith "errorr"
+      | x :: xs ->
+         match xs with
+               | [] -> x
+               | x' :: xs' -> if dist2 position x < dist2 position x' then pick_close_target position (x::xs') else pick_close_target position (x'::xs') 
+
+let rec sort list position acc=
+   match list with
+         | x :: xs ->let k = (pick_close_target position list ) in sort (List.filter (fun a -> a <> k) (x::xs)) k (k::acc)
+         | [] -> acc
+
 let plan visualize observation memory = 
    match memory.objective with
       | Initializing ->
-         let cibles = ( World.tree_positions observation.trees) @ [observation.spaceship] in
+         let cibles = ( World.tree_positions observation.trees) in
+         let cibles = List.rev (sort cibles observation.position []) in
             {
                memory with
-               objective = GoingTo([List.hd cibles],[observation.position]);
-               targets = cibles
+               objective = GoingTo([List.nth cibles 0],[observation.position]);
+               targets = cibles @ [observation.spaceship]
             }
       | GoingTo(path,path') ->
          if edge_valide (observation.position,List.nth path 0) (make_segments observation memory) =false 
          then 
          let newpath=  shortest_path (visibility_graph observation memory)  observation.position (List.hd path ) in 
-             { 
+               { 
                memory with 
                objective = GoingTo ((List.tl newpath)@(List.tl path),path');
                graph = visibility_graph observation memory
          }
-       else{
+         else{
             memory with 
             objective = GoingTo ( path, path');
             graph = visibility_graph observation memory
-          }
+            }
       | Chopping ->   
          let branc =       
                let t = tree_at observation.trees observation.position in
@@ -531,12 +560,10 @@ let next_action visualize observation memory =
                             |Some world ->
                let branche = tree.branches in 
                let new_world= World.put world (MicroAtom(0)) (Space.duration_of_int branche) pos in
-               let ()=Printf.eprintf "i'me here " in 
                Move(Space.angle_of_float d,Space.speed_of_float 0.),
                   {
                      memory with
-                     objective = Chopping;
-                     
+                     objective = Chopping;                     
                      known_world=Some new_world 
                   }        
             else
