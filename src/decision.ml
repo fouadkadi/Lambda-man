@@ -203,8 +203,12 @@ let discover visualize observation memory =
 let rec remove_micro trees micro team robot =
 match micro with 
 |[] -> trees 
-|m::micro -> 
-  remove_micro (List.filter (fun x -> (x=m.microcode_position)) trees) micro  team robot
+|m::micro -> match m.microcode with
+             |MicroList l -> assert false  
+             |MicroAtom(rb) -> 
+             if rb<>robot 
+             then remove_micro (List.filter (fun x -> (x<>m.microcode_position)) trees) micro  team robot
+             else remove_micro  trees micro  team robot
 
 
   let min_x p p' = if x_ p < x_ p' then p else p'
@@ -271,10 +275,13 @@ let make_nodes observation memory =
             |[]->[]
             |x::l-> (update_pos (vertices x)) @(aux l) 
                in
-               (*let ()=Printf.eprintf " path 1 : %s\n" (string_of_path (World.tree_positions observation.trees)) in *)
-               let usefull_trees=  remove_micro (World.tree_positions observation.trees) observation.messages 0 0 in
-               (*let ()=Printf.eprintf "path 2 : %s\n" (string_of_path usefull_trees) *)
-                [observation.spaceship] @ [observation.position] @ (usefull_trees) @ aux l
+               (*(*let ()=Printf.eprintf " path 1 : %s\n" (string_of_path (World.tree_positions observation.trees)) in *)
+               let my_micros= match  memory.known_world with 
+               |None -> []
+               |Some w -> w.microcodes
+               in let usefull_trees=  remove_micro (World.tree_positions observation.trees) my_micros 0 id in
+              (** let ()=Printf.eprintf "path 2 : %s\n" (string_of_path usefull_trees) in *) *)
+                [observation.spaceship] @ [observation.position] @ (World.tree_positions observation.trees) @ aux l
 
 let make_edges l= 
    let rec aux2 y list =
@@ -461,15 +468,22 @@ let rec sort list position acc=
          | x :: xs ->let k = (pick_close_target position list ) in sort (List.filter (fun a -> a <> k) (x::xs)) k (k::acc)
          | [] -> acc
 
-let plan visualize observation memory = 
+let rec subtargets acc k id nb l=
+   let ind=(k*nb)+id in
+      match List.length l with 
+      |a when a > ind -> subtargets ((List.nth l ind)::acc) (k+1) id nb l      
+      |a -> acc 
+
+let plan visualize observation memory id nb=
    match memory.objective with
       | Initializing ->
          let cibles = ( World.tree_positions observation.trees) in
-         let cibles = List.rev (sort cibles observation.position []) in
+         let cibles = sort cibles observation.position [] in
+         let tl= subtargets [observation.spaceship]  0 id nb cibles in
             {
                memory with
-               objective = GoingTo([List.nth cibles 0],[observation.position]);
-               targets = cibles @ [observation.spaceship]
+               objective = GoingTo([List.nth tl 0],[observation.position]);
+               targets = tl 
             }
       | GoingTo(path,path') ->
          if edge_valide (observation.position,List.nth path 0) (make_segments observation memory) =false 
@@ -542,15 +556,15 @@ let next_action visualize observation memory =
                      objective = GoingTo(List.tl path,path')
                   }   
                else 
-               let pos =(List.nth path 0) in 
+               (*let pos =(List.nth path 0) in 
                let tr = World.tree_at observation.trees pos in 
                match tr with 
-               |None ->
+               |None ->*)
                    Move(Space.angle_of_float d,Space.speed_of_float 0.),{
                      memory with
                      objective = Chopping
                   } 
-                 
+               (*  
                |Some tree -> match memory.known_world with
                             |None -> assert false 
                                  (*Move(Space.angle_of_float d,Space.speed_of_float 0.),{
@@ -565,7 +579,7 @@ let next_action visualize observation memory =
                      memory with
                      objective = Chopping;                     
                      known_world=Some new_world 
-                  }        
+                  }     *)   
             else
                Die "win",memory
          else 
@@ -581,8 +595,8 @@ let next_action visualize observation memory =
    des trois fonctions du dessus.
 
 *)
-let decide visualize observation memory : action * memory =
+let decide visualize observation memory id nb: action * memory =
   let memory = discover visualize observation memory in
-  let memory = plan visualize observation memory in
+  let memory = plan visualize observation memory id nb in
   let () = Visualizer.show_graph memory.graph in
   next_action visualize observation memory

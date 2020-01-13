@@ -24,7 +24,8 @@ let initial = {
     visibility  = default_visibility;
 }
 
-let simple_world nb_players nb_robots_per_team max_hell max_ground max_tree =
+let simple_world nb_players nb_robots_per_team hell_wanted ground_wanted 
+                 tree_wanted  max_branche max_suffering =
   let width  = Ext.Float.random_in_range 500. 1000. in
   let height = Ext.Float.random_in_range 500. 1000. in
   let random_angle () = Space.angle_of_float (Random.float (2. *. Float.pi)) in
@@ -47,13 +48,13 @@ let simple_world nb_players nb_robots_per_team max_hell max_ground max_tree =
     Space.(blend space (polygon s))
   in
   let make_ground space =
-    let ratio = Ground (Ext.Float.random_in_range 0.5 1.5) in
+    let ratio = Ground (Ext.Float.random_in_range 0.5 max_suffering) in
     let s = Space.square (random_position space) (random_size ()) ratio in
     Space.(blend space (polygon s))
   in
   let make_tree space _ =
     let tree_position = random_position space in
-    let branches = Ext.Int.random_in_range 2 20 in
+    let branches = Ext.Int.random_in_range 1 max_branche in
     { tree_position; branches }
   in
   let make_team space team_identifier =
@@ -65,11 +66,11 @@ let simple_world nb_players nb_robots_per_team max_hell max_ground max_tree =
       robots = Ext.Fun.repeat nb_robots_per_team make_robot }
   in
 
-  let nb_hell = Ext.Int.random_in_range 1 max_hell in
+  let nb_hell = hell_wanted in
   let space = Ext.Fun.iter nb_hell make_hell Space.empty in
-  let nb_grounds = Ext.Int.random_in_range 1 max_ground in
+  let nb_grounds = ground_wanted in
   let space = Ext.Fun.iter nb_grounds make_ground space in
-  let nb_trees = Ext.Int.random_in_range 1 max_tree in
+  let nb_trees = tree_wanted in
   let trees = Ext.Fun.repeat nb_trees (make_tree space) in
   let teams = Ext.Fun.repeat nb_players (make_team space) in
   { initial with space; trees; teams }
@@ -79,9 +80,10 @@ let output world =
 
 let generate
       visualize nb_players nb_robots_per_teams
-      max_hell max_ground max_tree =
+      max_hell max_ground max_tree max_branche max_suffering =
   let world =
-    simple_world nb_players nb_robots_per_teams max_hell max_ground max_tree
+    simple_world nb_players nb_robots_per_teams max_hell max_ground max_tree 
+    max_branche max_suffering 
   in
   if visualize then (Visualizer.(show world; pause ()));
   output world
@@ -103,22 +105,34 @@ let nb_robots = Cmdliner.(Arg.(
   ~doc:"Handle $(docv) robots per player."
 ))
 
-let max_hell = Cmdliner.(Arg.(
+let get_hell = Cmdliner.(Arg.(
   value & opt int 1 & info ["h"]
   ~docv:"MAXHELL"
   ~doc:"Use a maximum of $(docv) hell blocks."
 ))
 
-let max_ground = Cmdliner.(Arg.(
+let get_ground = Cmdliner.(Arg.(
   value & opt int 1 & info ["g"]
   ~docv:"MAXGROUND"
   ~doc:"Use a maximum of $(docv) ground blocks."
 ))
 
-let max_tree = Cmdliner.(Arg.(
+let get_tree = Cmdliner.(Arg.(
   value & opt int 1 & info ["t"]
-  ~docv:"MAXTREE"
-  ~doc:"Use a maximum of $(docv) trees."
+  ~docv:"NEMTREE"
+  ~doc:"get number of $(docv) trees."
+))
+
+let max_suffering = Cmdliner.(Arg.(
+  value & opt float 0.1 & info ["ms"]
+  ~docv:"MAXSUFFER"
+  ~doc:"Use a maximum of $(docv) ratio."
+))
+
+let max_branche = Cmdliner.(Arg.(
+  value & opt int 1 & info ["mb"]
+  ~docv:"MAXBRANCHE"
+  ~doc:"Use a maximum of $(docv) branche."
 ))
 
 let cmd = Cmdliner.(
@@ -126,6 +140,7 @@ let cmd = Cmdliner.(
   let exits = Term.default_exits in
   Term.(const generate $ visualization_flag
         $ nb_players $ nb_robots
-        $ max_hell $ max_ground $ max_tree),
+        $ get_hell $ get_ground $ get_tree
+        $ max_branche $ max_suffering),
   Term.info "generate" ~doc ~exits
 )
