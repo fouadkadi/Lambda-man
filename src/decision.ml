@@ -229,6 +229,7 @@ match micro with
      | x :: xs -> List.fold_left min_y x xs
      | [] -> failwith "empty"
   
+     (**cette fonction pour créer un rectangle qui entour les sommets de polyone d'enfer*)
   let update_pos sommets = 
      let min_x = x_(minimum_x sommets)  in let max_x = x_(maximum_x sommets) in let min_y = y_(minimum_y sommets)  in let max_y = y_(maximum_y sommets)  in 
         [(min_x-.3.,max_y+.3.);
@@ -236,11 +237,13 @@ match micro with
         (max_x +.3.,min_y -.3.);
         (min_x-.3.,min_y -.3.)]
    
+   (**vérifier si une arrete n'intersecte pas avec un polygone d'enfer*)
 let rec  edge_valide  x l= 
    match l with 
       | []-> true
       | y::l'-> if segment_intersects y x then  false else edge_valide x l'
 
+   (*filtrer les arretes *)
 let filter_edges edges segments= 
    let rec aux edges acc s  = match edges with 
    | [] -> acc
@@ -253,15 +256,16 @@ let filter_edges edges segments=
    in 
          f (aux edges  [] segments)
 
+(*récupérer les polygones d'enfer *)
 let make_polygones observation memory = 
    match memory.known_world with
    | None ->[]
    | Some n ->Space.polygons n.space ((=) Hell)
-
-   let make_polygones_suffer observation memory = 
-      match memory.known_world with
-      | None ->[]
-      | Some n ->Space.polygons n.space ((<>) Hell)
+(*récupérer les polygones de souffrance *)
+let make_polygones_suffer observation memory = 
+   match memory.known_world with
+   | None ->[]
+   | Some n ->Space.polygons n.space ((<>) Hell)
 
 let make_segments observation memory = 
    match memory.known_world with
@@ -283,6 +287,7 @@ let make_nodes observation memory =
               (** let ()=Printf.eprintf "path 2 : %s\n" (string_of_path usefull_trees) in *) *)
                 [observation.spaceship] @ [observation.position] @ (World.tree_positions observation.trees) @ aux l
 
+(*créer les arretes pour avoir un graph complet *)
 let make_edges l= 
    let rec aux2 y list =
       match list with
@@ -294,7 +299,9 @@ let make_edges l=
                   | [] ->[]
                   | y::list' -> (aux2 y list')@(aux list')  
                   in aux l 
-  
+
+(*récupérer les points d'intersection de deu segments *)
+
 let intersectionn (p,p') (p'',p''') = 
    let a (x0,y0) (x1,y1)=(y1-.y0)/.(x1-.x0) in 
       let b (x0,y0) (x1,y1)=y0 -. (x0*.(a (x0,y0) (x1,y1))) in 
@@ -305,7 +312,9 @@ let intersectionn (p,p') (p'',p''') =
 
 let half (x,y) (x',y') = ((x+.x')/.(2.0),(y+.y')/.(2.0))
 
-let foo p e t =
+(*changer la distance d'une arrete par rapport la souffrance d'un polygone*)
+
+let chang_edg_pol p e t =
    let pol = polygon_segments p in 
    let (a,b,d)=e in
    let rec aux l (a,b,d) =
@@ -327,11 +336,14 @@ let foo p e t =
                   let Distance d' = dist2 p p' in 
                      let f = suffering  t (half p p')  in 
                         (a,b,d -. d'+. d'/.f)
-      
+   (*changer la distance d'une arrete par rapport la souffrance tous les polygones qui l'intersecte*)
+
    let rec change_distance_edge e pols t =
       match pols with
       | []->e
-      | p::pols' ->change_distance_edge (foo p e t) pols' t
+      | p::pols' ->change_distance_edge (chang_edg_pol p e t) pols' t
+
+   (*changer les distances d'arretes *)
 
    let change_distances_to_suffer observation memory edges= 
       let pols = make_polygones_suffer observation memory
@@ -455,6 +467,9 @@ let shortest_path graph source target : path =
    et le faire suivre un premier chemin.
 
 *)
+
+(*trier les cibles pour optimiser le chemin de robot*)
+
 let rec pick_close_target position list= 
    match list with
       | [] -> failwith "errorr"
@@ -467,6 +482,8 @@ let rec sort list position acc=
    match list with
          | x :: xs ->let k = (pick_close_target position list ) in sort (List.filter (fun a -> a <> k) (x::xs)) k (k::acc)
          | [] -> acc
+
+(*cette fonction divise les cibles entre les robots*)
 
 let rec subtargets acc k id nb l=
    let ind=(k*nb)+id in
