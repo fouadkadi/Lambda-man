@@ -1,4 +1,7 @@
 # Lambda-man
+
+L'enoncé du projet est le fichier **lambda-man.pdf** ,il contient des indications sur la maniére de lancer le serveur. 
+
 ## Tache 1 
    Dans cette partie on programme le comportement du robot dans un monde simple sans obstacles ,c-a-d définir les targets et chopper les arbes un à un puis revenir au vaisseau. 
 ## Tache 2
